@@ -157,7 +157,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Scan filesystem - SARIF output
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -176,7 +176,7 @@ jobs:
 
       - name: Scan filesystem - text output for PR comment
         if: github.event_name == 'pull_request'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
