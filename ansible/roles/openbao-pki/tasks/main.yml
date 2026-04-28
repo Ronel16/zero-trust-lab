@@ -10,6 +10,7 @@
     method: GET
     headers:
       X-Vault-Token: "{{ openbao_token }}"
+    validate_certs: false
     status_code: [200, 400]
   register: pki_root_check
 
@@ -24,6 +25,7 @@
       type: pki
       config:
         max_lease_ttl: "87600h"
+    validate_certs: false
     status_code: 204
   when: pki_root_check.status == 400
 
@@ -41,6 +43,7 @@
       key_bits: 384
       organization: "{{ pki_organization }}"
       country: "{{ pki_country }}"
+    validate_certs: false
     status_code: [200, 204]
   when: pki_root_check.status == 400
 
@@ -55,6 +58,7 @@
       type: pki
       config:
         max_lease_ttl: "43800h"
+    validate_certs: false
     status_code: 204
   when: pki_root_check.status == 400
 
@@ -73,4 +77,5 @@
       key_bits: 256
       server_flag: true
       client_flag: true
+    validate_certs: false
     status_code: 204
