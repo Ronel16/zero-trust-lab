@@ -1,0 +1,76 @@
+---
+- name: Install hvac
+  ansible.builtin.pip:
+    name: hvac>=2.1.0
+    state: present
+
+- name: Check PKI root mount
+  ansible.builtin.uri:
+    url: "{{ openbao_addr }}/v1/sys/mounts/pki-root"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ openbao_token }}"
+    status_code: [200, 400]
+  register: pki_root_check
+
+- name: Enable PKI root engine
+  ansible.builtin.uri:
+    url: "{{ openbao_addr }}/v1/sys/mounts/pki-root"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ openbao_token }}"
+    body_format: json
+    body:
+      type: pki
+      config:
+        max_lease_ttl: "87600h"
+    status_code: 204
+  when: pki_root_check.status == 400
+
+- name: Generate Root CA
+  ansible.builtin.uri:
+    url: "{{ openbao_addr }}/v1/pki-root/root/generate/internal"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ openbao_token }}"
+    body_format: json
+    body:
+      common_name: "{{ pki_root_cn }}"
+      ttl: "87600h"
+      key_type: "ec"
+      key_bits: 384
+      organization: "{{ pki_organization }}"
+      country: "{{ pki_country }}"
+    status_code: [200, 204]
+  when: pki_root_check.status == 400
+
+- name: Enable PKI intermediate engine
+  ansible.builtin.uri:
+    url: "{{ openbao_addr }}/v1/sys/mounts/pki-int"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ openbao_token }}"
+    body_format: json
+    body:
+      type: pki
+      config:
+        max_lease_ttl: "43800h"
+    status_code: 204
+  when: pki_root_check.status == 400
+
+- name: Create certificate role for internal services
+  ansible.builtin.uri:
+    url: "{{ openbao_addr }}/v1/pki-int/roles/internal-services"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ openbao_token }}"
+    body_format: json
+    body:
+      allowed_domains: "{{ pki_allowed_domains }}"
+      allow_subdomains: true
+      max_ttl: "720h"
+      key_type: "ec"
+      key_bits: 256
+      server_flag: true
+      client_flag: true
+    status_code: 204

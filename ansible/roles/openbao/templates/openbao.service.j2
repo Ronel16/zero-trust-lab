@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenBao Secrets Manager
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=notify
+User=openbao
+Group=openbao
+ProtectSystem=full
+PrivateTmp=yes
+NoNewPrivileges=yes
+AmbientCapabilities=CAP_IPC_LOCK
+ExecStart=/usr/local/bin/bao server -config={{ openbao_config_dir }}/openbao.hcl
+ExecReload=/bin/kill --signal HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

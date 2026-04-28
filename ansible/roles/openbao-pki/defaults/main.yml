@@ -1,0 +1,10 @@
+openbao_addr: "http://10.0.20.11:8200"
+openbao_token: "REPLACE_WITH_VAULT_ROOT_TOKEN"
+pki_root_cn: "Zero Trust Lab Root CA"
+pki_int_cn:  "Zero Trust Lab Intermediate CA"
+pki_ou:           "Infrastructure"
+pki_organization: "Homelab"
+pki_country:      "FR"
+pki_allowed_domains:
+  - "lab.local"
+  - "trust.lab.local"

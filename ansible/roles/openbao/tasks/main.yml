@@ -1,0 +1,83 @@
+---
+- name: Create openbao group
+  ansible.builtin.group:
+    name: openbao
+    system: true
+
+- name: Create openbao user
+  ansible.builtin.user:
+    name: openbao
+    group: openbao
+    system: true
+    shell: /bin/false
+    create_home: false
+
+- name: Create directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: openbao
+    group: openbao
+    mode: "0750"
+  loop:
+    - "{{ openbao_data_dir }}"
+    - "{{ openbao_config_dir }}"
+    - "{{ openbao_config_dir }}/tls"
+    - "{{ openbao_log_dir }}"
+
+- name: Check if binary exists
+  ansible.builtin.stat:
+    path: /usr/local/bin/bao
+  register: openbao_binary
+
+- name: Install unzip
+  ansible.builtin.apt:
+    name: unzip
+    state: present
+  when: not openbao_binary.stat.exists
+
+- name: Download OpenBao
+  ansible.builtin.get_url:
+    url: "https://github.com/openbao/openbao/releases/download/v{{ openbao_version }}/bao_{{ openbao_version }}_linux_amd64.zip"
+    dest: /tmp/openbao.zip
+    mode: "0644"
+  when: not openbao_binary.stat.exists
+
+- name: Extract OpenBao
+  ansible.builtin.unarchive:
+    src: /tmp/openbao.zip
+    dest: /usr/local/bin/
+    remote_src: true
+    mode: "0755"
+  when: not openbao_binary.stat.exists
+  notify: restart openbao
+
+- name: Deploy configuration
+  ansible.builtin.template:
+    src: openbao.hcl.j2
+    dest: "{{ openbao_config_dir }}/openbao.hcl"
+    owner: openbao
+    group: openbao
+    mode: "0640"
+  notify: restart openbao
+
+- name: Deploy systemd service
+  ansible.builtin.template:
+    src: openbao.service.j2
+    dest: /etc/systemd/system/openbao.service
+    mode: "0644"
+  notify: [reload systemd, restart openbao]
+
+- name: Enable and start OpenBao
+  ansible.builtin.systemd:
+    name: openbao
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for OpenBao API
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ openbao_port }}/v1/sys/health"
+    status_code: [200, 429, 472, 473, 501, 503]
+  retries: 12
+  delay: 5

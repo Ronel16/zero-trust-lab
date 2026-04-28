@@ -1,0 +1,9 @@
+openbao_version: "2.1.0"
+openbao_config_dir: /etc/openbao
+openbao_data_dir: /opt/openbao/data
+openbao_log_dir: /var/log/openbao
+openbao_port: 8200
+openbao_cluster_port: 8201
+openbao_tls_disable: true
+openbao_api_addr: "http://10.0.20.11:8200"
+openbao_cluster_addr: "http://10.0.20.11:8201"

@@ -1,0 +1,15 @@
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+*.pem
+*.key
+.env
+secrets/
+*vault-token*
+reports/
+__pycache__/
+.venv/
+.DS_Store

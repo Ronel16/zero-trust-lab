@@ -1,0 +1,14 @@
+authentik_version: "2024.12.2"
+authentik_port_http: 9000
+authentik_port_https: 9443
+authentik_data_dir: /opt/authentik
+authentik_compose_dir: /opt/authentik
+authentik_secret_key: "REPLACE_WITH_VAULT_VALUE"
+authentik_postgres_password: "REPLACE_WITH_VAULT_VALUE"
+authentik_postgres_db: "authentik"
+authentik_postgres_user: "authentik"
+authentik_email_host: ""
+authentik_email_port: 587
+authentik_email_use_tls: true
+authentik_email_from: "authentik@lab.local"
+authentik_openbao_url: "https://10.0.20.11:8200"

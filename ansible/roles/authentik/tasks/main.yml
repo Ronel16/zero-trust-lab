@@ -1,0 +1,52 @@
+---
+- name: Install required packages
+  ansible.builtin.apt:
+    name: [docker.io, docker-compose-v2, python3-docker, curl, ca-certificates]
+    state: present
+    update_cache: true
+
+- name: Add user to docker group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+
+- name: Create Authentik data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0750"
+  loop:
+    - "{{ authentik_data_dir }}"
+    - "{{ authentik_data_dir }}/media"
+    - "{{ authentik_data_dir }}/certs"
+    - "{{ authentik_data_dir }}/postgres"
+    - "{{ authentik_data_dir }}/redis"
+
+- name: Deploy Docker Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ authentik_compose_dir }}/docker-compose.yml"
+    mode: "0640"
+  notify: restart authentik
+
+- name: Deploy environment file
+  ansible.builtin.template:
+    src: authentik.env.j2
+    dest: "{{ authentik_compose_dir }}/.env"
+    mode: "0600"
+  notify: restart authentik
+
+- name: Start Authentik stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ authentik_compose_dir }}"
+    state: present
+
+- name: Wait for Authentik API
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ authentik_port_http }}/api/v3/root/config/"
+    status_code: 200
+  retries: 24
+  delay: 10
+  ignore_errors: true
