@@ -17,10 +17,10 @@
       v
 [OPNsense]  <-- Policy Enforcement Point (PEP)
       |
-      | Trust VLAN 10.0.20.0/24
-      +-----------> [Authentik 10.0.20.10]  <-- Policy Decision Point (PDP) / IdP
+      | Trust VLAN <TRUST_VLAN_CIDR>
+      +-----------> [Authentik <AUTHENTIK_IP>]  <-- Policy Decision Point (PDP) / IdP
       |
-      +-----------> [OpenBao 10.0.20.11]   <-- Secrets / PKI (PDP data plane)
+      +-----------> [OpenBao <OPENBAO_IP>]   <-- Secrets / PKI (PDP data plane)
       |
       v
 [Workloads on Proxmox cluster]
@@ -33,8 +33,8 @@
 | Boundary | Description |
 |---|---|
 | TB-1 | External internet → OPNsense WAN |
-| TB-2 | OPNsense → Trust VLAN (10.0.20.0/24) |
-| TB-3 | Trust VLAN → Management VLAN (10.0.10.0/24) |
+| TB-2 | OPNsense → Trust VLAN (<TRUST_VLAN_CIDR>) |
+| TB-3 | Trust VLAN → Management VLAN (<MGMT_VLAN_CIDR>) |
 | TB-4 | Trust VLAN → Workload VLAN |
 | TB-5 | Authentik → OpenBao (internal trust layer) |
 

@@ -11,21 +11,21 @@
 ```
 +-------------------------------------------------------------+
 |  NETWORK LAYER                                              |
-|  OPNsense 26.1 VM on Node 3 (N100, 10.0.10.12)            |
-|  WAN: ISP  |  LAN trunk: vmbr0  |  Ceph: 10.0.50.0/24    |
+|  OPNsense 26.1 VM on Node 3 (N100, <NODE3_IP>)            |
+|  WAN: ISP  |  LAN trunk: vmbr0  |  Ceph: <CEPH_VLAN_CIDR>    |
 |  Policy Enforcement Point (PEP) — NIST SP 800-207          |
 +-------------------------------------------------------------+
          |  VLAN 10 mgmt    |  VLAN 20 trust   |  VLAN 30 workloads
 +--------v--------+ +-------v--------+ +--------v---------+
 | MANAGEMENT VLAN | | TRUST VLAN     | | WORKLOAD VLAN    |
-| 10.0.10.0/24    | | 10.0.20.0/24   | | 10.0.30.0/24     |
+| <MGMT_VLAN_CIDR>    | | <TRUST_VLAN_CIDR>   | | <WORKLOAD_VLAN_CIDR>     |
 |                 | |                | |                  |
 | Node 1 NUC      | | Authentik VM   | | Application VMs  |
-| 10.0.10.10      | | 10.0.20.10     | |                  |
+| <NODE1_IP>      | | <AUTHENTIK_IP>     | |                  |
 | Node 2 N150     | |                | |                  |
-| 10.0.10.11      | | OpenBao VM     | |                  |
-| Node 3 N100     | | 10.0.20.11     | |                  |
-| 10.0.10.12      | |                | |                  |
+| <NODE2_IP>      | | OpenBao VM     | |                  |
+| Node 3 N100     | | <OPENBAO_IP>     | |                  |
+| <NODE3_IP>      | |                | |                  |
 +-----------------+ +----------------+ +------------------+
 ```
 

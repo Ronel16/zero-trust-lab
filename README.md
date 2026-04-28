@@ -19,12 +19,12 @@ Aligned with NIST SP 800-207 Zero Trust Architecture.
       v HTTPS / Tailscale
 [OPNsense 26.1]         -- Policy Enforcement Point (PEP)
       |
-      +---> [Authentik 2024.12]  10.0.20.10  -- Identity Provider / PDP
+      +---> [Authentik 2024.12]  <AUTHENTIK_IP>  -- Identity Provider / PDP
       |
-      +---> [OpenBao 2.1]        10.0.20.11  -- Secrets / PKI
+      +---> [OpenBao 2.1]        <OPENBAO_IP>  -- Secrets / PKI
       |
       v
-[Proxmox workloads]     10.0.30.0/24
+[Proxmox workloads]     <WORKLOAD_VLAN_CIDR>
 ```
 
 Full architecture documentation: [docs/architecture.md](docs/architecture.md)
@@ -65,7 +65,7 @@ ansible-playbook -i inventory/hosts.yml playbooks/deploy-trust-layer.yml \
 ### 3. Initialize OpenBao (manual step)
 
 ```bash
-ssh ubuntu@10.0.20.11
+ssh ubuntu@<OPENBAO_IP>
 bao operator init -key-shares=5 -key-threshold=3
 # Save the 5 unseal keys and root token securely (offline storage)
 
@@ -93,7 +93,7 @@ ansible-playbook -i inventory/hosts.yml playbooks/deploy-trust-layer.yml \
 
 ### 6. First Authentik login
 
-Navigate to `http://10.0.20.10:9000/if/flow/initial-setup/` to set the
+Navigate to `http://<AUTHENTIK_IP>:9000/if/flow/initial-setup/` to set the
 admin password.
 
 ---

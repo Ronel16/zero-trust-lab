@@ -5,5 +5,5 @@ openbao_log_dir: /var/log/openbao
 openbao_port: 8200
 openbao_cluster_port: 8201
 openbao_tls_disable: true
-openbao_api_addr: "http://10.0.20.11:8200"
-openbao_cluster_addr: "http://10.0.20.11:8201"
+openbao_api_addr: "http://<OPENBAO_IP>:8200"
+openbao_cluster_addr: "http://<OPENBAO_IP>:8201"
