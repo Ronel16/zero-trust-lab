@@ -1,0 +1,52 @@
+---
+# ansible/playbooks/deploy-trust-layer.yml
+#
+# Full deployment sequence for the Zero Trust trust layer.
+# Run order:
+#   1. openbao     - install and start OpenBao
+#   2. openbao-pki - initialize PKI (requires manual unseal first)
+#   3. authentik   - deploy Authentik via Docker Compose
+#
+# Usage:
+#   # Step 1: Deploy infrastructure
+#   ansible-playbook -i inventory/hosts.yml playbooks/deploy-trust-layer.yml \
+#     --tags openbao
+#
+#   # Step 2: Initialize and unseal OpenBao manually (see docs/openbao-init.md)
+#   #   ssh ubuntu@10.0.20.11
+#   #   bao operator init
+#   #   bao operator unseal  (x3)
+#   #   export BAO_TOKEN=<root_token>
+#
+#   # Step 3: Configure PKI
+#   ansible-playbook -i inventory/hosts.yml playbooks/deploy-trust-layer.yml \
+#     --tags pki --extra-vars "openbao_token=<root_token>"
+#
+#   # Step 4: Deploy Authentik
+#   ansible-playbook -i inventory/hosts.yml playbooks/deploy-trust-layer.yml \
+#     --tags authentik
+#
+#   # Full run (requires OpenBao already initialized and token set):
+#   ansible-playbook -i inventory/hosts.yml playbooks/deploy-trust-layer.yml \
+#     --extra-vars "openbao_token=<root_token>"
+
+- name: Deploy OpenBao
+  hosts: openbao
+  become: true
+  tags: [openbao]
+  roles:
+    - role: openbao
+
+- name: Configure OpenBao PKI
+  hosts: openbao
+  become: true
+  tags: [pki]
+  roles:
+    - role: openbao-pki
+
+- name: Deploy Authentik
+  hosts: authentik
+  become: true
+  tags: [authentik]
+  roles:
+    - role: authentik

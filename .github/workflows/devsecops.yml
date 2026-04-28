@@ -1,0 +1,272 @@
+---
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+env:
+  CHECKOV_VERSION: "3.2.0"
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Stage 1: Secret detection
+  # -----------------------------------------------------------------------
+  gitleaks:
+    name: Secret Detection (GitLeaks)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # -----------------------------------------------------------------------
+  # Stage 2: SAST - Semgrep
+  # -----------------------------------------------------------------------
+  semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-24.04
+    needs: gitleaks
+    container:
+      image: returntocorp/semgrep:1.78.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config=p/terraform \
+            --config=p/dockerfile \
+            --config=p/python \
+            --config=p/ansible \
+            --sarif \
+            --output=semgrep.sarif \
+            .
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const sarif = JSON.parse(fs.readFileSync('semgrep.sarif', 'utf8'));
+            const count = (sarif.runs || []).reduce((n, r) => n + (r.results || []).length, 0);
+            const body = count === 0
+              ? '**Semgrep SAST**: No findings.'
+              : `**Semgrep SAST**: ${count} finding(s). See the Security tab for details.`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+  # -----------------------------------------------------------------------
+  # Stage 3: IaC scanning - Checkov (Terraform + Ansible + Dockerfile)
+  # tfsec remplace par Trivy ci-dessous — tfsec est archive depuis 2024
+  # -----------------------------------------------------------------------
+  checkov:
+    name: IaC Scan (Checkov)
+    runs-on: ubuntu-24.04
+    needs: gitleaks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Checkov
+        run: pip install checkov==${{ env.CHECKOV_VERSION }} --break-system-packages
+
+      - name: Run Checkov - SARIF output
+        run: |
+          checkov \
+            --directory . \
+            --framework terraform,ansible,dockerfile \
+            --output sarif \
+            --output-file-path checkov.sarif \
+            --soft-fail
+        continue-on-error: true
+
+      - name: Run Checkov - text output for PR comment
+        run: |
+          checkov \
+            --directory . \
+            --framework terraform,ansible,dockerfile \
+            --output cli \
+            --compact \
+            --quiet 2>&1 | tee checkov-summary.txt || true
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: checkov.sarif/results_sarif.sarif
+          category: checkov
+
+      - name: Post Checkov summary as PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const raw = fs.readFileSync('checkov-summary.txt', 'utf8');
+            const body = raw.length > 3000
+              ? raw.substring(0, 3000) + '\n\n...(truncated)'
+              : raw;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `**Checkov IaC Scan**\n\`\`\`\n${body}\n\`\`\``
+            });
+
+  # -----------------------------------------------------------------------
+  # Stage 4: Trivy - CVE scan + Terraform misconfiguration (remplace tfsec)
+  # tfsec a ete archive par Aqua Security en 2024, Trivy est le successeur
+  # officiel pour le scan Terraform.
+  # Reference: github.com/aquasecurity/tfsec -> "tfsec is now part of Trivy"
+  # -----------------------------------------------------------------------
+  trivy:
+    name: Container and IaC Scan (Trivy)
+    runs-on: ubuntu-24.04
+    needs: gitleaks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan filesystem - SARIF output
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: 0
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+      - name: Scan filesystem - text output for PR comment
+        if: github.event_name == 'pull_request'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: CRITICAL,HIGH
+          output: trivy-summary.txt
+          exit-code: 0
+
+      - name: Post Trivy summary as PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let summary = 'Trivy summary not available.';
+            try { summary = fs.readFileSync('trivy-summary.txt', 'utf8'); } catch (_) {}
+            const body = summary.length > 3000
+              ? summary.substring(0, 3000) + '\n...(truncated)'
+              : summary;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `**Trivy Scan**\n\`\`\`\n${body}\n\`\`\``
+            });
+
+  # -----------------------------------------------------------------------
+  # Stage 5: OPA policy enforcement
+  # -----------------------------------------------------------------------
+  opa:
+    name: Policy Enforcement (OPA)
+    runs-on: ubuntu-24.04
+    needs: gitleaks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OPA
+        run: |
+          curl -sL -o /usr/local/bin/opa \
+            https://openpolicyagent.org/downloads/v0.65.0/opa_linux_amd64_static
+          chmod +x /usr/local/bin/opa
+
+      - name: Run OPA policy tests
+        id: opa_test
+        run: |
+          opa test ./policies/opa/ -v 2>&1 | tee opa-results.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Post OPA results as PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = fs.readFileSync('opa-results.txt', 'utf8');
+            const passed = '${{ steps.opa_test.outputs.exit_code }}' === '0';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `**OPA Policy Enforcement**: ${passed ? 'All policies passed.' : 'Violations detected.'}\n\`\`\`\n${results.substring(0, 2000)}\n\`\`\``
+            });
+
+  # -----------------------------------------------------------------------
+  # Stage 6: Global summary
+  # -----------------------------------------------------------------------
+  summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-24.04
+    needs: [semgrep, checkov, trivy, opa]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Post global summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = {
+              'GitLeaks (Secret Detection)': '${{ needs.gitleaks.result }}',
+              'Semgrep (SAST)':              '${{ needs.semgrep.result }}',
+              'Checkov (IaC)':               '${{ needs.checkov.result }}',
+              'Trivy (Container + IaC)':     '${{ needs.trivy.result }}',
+              'OPA (Policies)':              '${{ needs.opa.result }}'
+            };
+            const icon = r => r === 'success' ? 'PASS' : r === 'skipped' ? 'SKIP' : 'FAIL';
+            const rows = Object.entries(jobs).map(([n, r]) => `| ${n} | ${icon(r)} |`).join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## DevSecOps Pipeline Results\n\n| Tool | Result |\n|---|---|\n${rows}\n\nFull details in the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning).`
+            });
